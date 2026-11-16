@@ -74,10 +74,48 @@ en fp16 + metadatos de grupo AWQ (escalas/ceros, group_size 128).
 
 ---
 
-## Experimento 2b — 7B-AWQ (el desbloqueo) — PENDIENTE
-Servir `Qwen2.5-7B-Instruct-AWQ` en la 4050 de 6 GB. Objetivo: correr un 7B
-donde el 7B-fp16 (~14 GB) daría OOM. Muy apretado; probar `--max-model-len 2048
---gpu-memory-utilization 0.92`, bajar a 1024 si hace falta. Medir latencia/
-throughput/VRAM. Que no quepa también es hallazgo (techo de la tarjeta).
+## Experimento 2b — AWQ como desbloqueo de capacidad (6 GB)
+
+**Propósito:** usar la VRAM que ahorra AWQ para correr un modelo más grande del
+que cabe en fp16, en la misma tarjeta de 6 GB.
+
+### Qué cabe y qué no (gpu-mem-util 0.80)
+| modelo   | pesos    | KV cache       | ¿corre? |
+|----------|----------|----------------|---------|
+| 7B-AWQ   | ~4.5 GiB | negativo       | ❌ techo de la tarjeta |
+| 3B-fp16  | 5.79 GiB | **−0.73 GiB**  | ❌ "No available memory for the cache blocks" |
+| 3B-AWQ   | 1.95 GiB | 1.57 GiB       | ✅ 11.16× concurrencia |
+
+### 3B-AWQ corriendo
+| test                      | valor |
+|---------------------------|-------|
+| p50 / p99                 | 1.67 s / 1.92 s |
+| tok/s seq                 | 75.6 |
+| tok/s @ conc 1/4/8/16/32  | 76 / 298 / 577 / 1076 / 1579 |
+
+### Resultado
+Un 3B en fp16 (pesos 5.79 GiB) deja el KV cache en **−0.73 GiB** → no arranca.
+En AWQ (1.95 GiB) corre con holgura. **La cuantización duplicó el tamaño de
+modelo desplegable en hardware fijo.**
+
+### La joya: 3B-AWQ vs 1.5B-fp16
+| | 1.5B-fp16 | 3B-AWQ |
+|---|---|---|
+| parámetros    | 1.5B      | 2× (3B)  |
+| pesos en VRAM | 2.98 GiB  | 1.95 GiB |
+| tok/s seq     | 55.6      | 75.6     |
+| p50           | 2.29 s    | 1.67 s   |
+
+El 3B-AWQ es **más grande y más rápido** que el 1.5B-fp16. ¿Por qué un modelo
+mayor es más rápido? Porque el decode es memory-bound: lo que manda es los
+**bytes de pesos leídos por token**, no el nº de parámetros — y el 3B en 4-bit
+(1.95 GiB) son menos bytes que el 1.5B en 16-bit (2.98 GiB).
+
+### Nota de hardware
+`--gpu-memory-utilization` es fracción de la VRAM **total** (6 GB), no de la
+libre. Con ~1 GiB tomado por la pantalla (4.91 libres), el máximo usable es
+~0.80; a 0.92 vLLM ni arranca (pide 5.52 > 4.91 libres).
+
+---
 
 ## Experimento 3 — prefix/KV caching · model routing — PENDIENTE
