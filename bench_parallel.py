@@ -29,6 +29,7 @@ def una_peticion(_):
         "messages": [{"role": "user", "content": PROMPT}],
         "max_tokens": 128,
         "temperature": 0.7,
+        "ignore_eos": True,
     }).encode()
     req = urllib.request.Request(URL, data=body,
                                  headers={"Content-Type": "application/json"})
