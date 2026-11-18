@@ -49,3 +49,9 @@ timestamp,tag,test,concurrency,metric,value
 2026-11-16T02:36:52+00:00,awq-3b,parallel,8,throughput_tok_s,576.6017
 2026-11-16T02:36:56+00:00,awq-3b,parallel,16,throughput_tok_s,1075.7874
 2026-11-16T02:36:59+00:00,awq-3b,parallel,32,throughput_tok_s,1578.761
+2026-11-17T23:49:00+00:00,prefix-on,prefix,1,ttft_mean_s,0.0283
+2026-11-17T23:49:00+00:00,prefix-on,prefix,1,ttft_p50_s,0.0256
+2026-11-17T23:49:00+00:00,prefix-on,prefix,1,ttft_p99_s,0.043
+2026-11-17T23:51:02+00:00,prefix-off,prefix,1,ttft_mean_s,0.2419
+2026-11-17T23:51:02+00:00,prefix-off,prefix,1,ttft_p50_s,0.2414
+2026-11-17T23:51:02+00:00,prefix-off,prefix,1,ttft_p99_s,0.2456

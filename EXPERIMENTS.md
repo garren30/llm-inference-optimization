@@ -118,4 +118,43 @@ libre. Con ~1 GiB tomado por la pantalla (4.91 libres), el máximo usable es
 
 ---
 
-## Experimento 3 — prefix/KV caching · model routing — PENDIENTE
+## Experimento 3 — Prefix caching
+
+**Propósito:** medir cuánto ahorra reusar el KV de un prefijo compartido entre
+peticiones (system prompts, RAG, few-shot, chat multi-turno). Ataca el PREFILL,
+así que la métrica es TTFT (time-to-first-token), medido por streaming.
+
+**Workload:** prefijo compartido ~2k tokens (fijo) + pregunta corta que varía.
+Mismo modelo (awq-1.5b), con prefix caching ON (default) vs OFF
+(`--no-enable-prefix-caching`).
+
+| config     | TTFT media | TTFT p50 | hit rate |
+|------------|------------|----------|----------|
+| prefix-off | 241.9 ms   | 241.4 ms | (off)    |
+| prefix-on  | 28.3 ms    | 25.6 ms  | **94.6%** |
+
+**Resultado: TTFT 9.4× más rápido** (241 → 26 ms). `prefix-off` queda clavado
+en ~241 ms porque re-prefillea los ~2k tokens en cada petición; `prefix-on` solo
+prefillea la pregunta corta y reusa el resto.
+
+**Corroboración doble (logs del servidor):**
+- `Prefix cache hit rate: 94.6%` en ON; el campo desaparece en OFF.
+- `Avg prompt throughput`: ~1330–1775 tok/s en OFF (prefillea 2k tok cada vez)
+  vs ~169 tok/s en ON (94.6% hits) → la GPU hizo **~10× menos prefill**.
+
+**Cuándo aplica (honesto):** el 9.4× es para un workload favorable — prefijo
+largo y muy reusado. El efecto escala con *largo del prefijo × hit rate*; con
+prompts únicos no ayuda. En producción brilla porque system prompts, RAG,
+agentes y chat multi-turno tienen exactamente esa forma.
+
+---
+
+## Resumen — tres partes del stack de latencia
+| experimento | ataca | resultado |
+|-------------|-------|-----------|
+| 1. CUDA graphs | overhead de kernels en decode | +5.8% throughput, gratis |
+| 2. AWQ 4-bit | memoria de pesos | 2.3× latencia, 2.7× capacidad, 3B donde no cabía |
+| 3. prefix caching | reuso de prefill | 9.4× TTFT en workloads con prefijo compartido |
+
+## Pendiente
+- Peldaño 4 (repo aparte): la plataforma — observabilidad, autoscaling, CI/CD.
